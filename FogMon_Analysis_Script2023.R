@@ -19,16 +19,18 @@ library(agricolae)
 ## figure 1: mean monthly temperature of all four fog stations
 
 # load & clean up processed fog data
-temp_month <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
+temp_month <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
   # select columns halfhour and AirT_C_Avg (Average Temperature)
   select(halfhour,AirT_C_Avg) %>%
   # remove any rows with missing values
   remove_missing() %>% 
   # add a column that mutates halfhour values into months
-  mutate(month = month(halfhour)) %>% 
+  mutate(month = floor_date(halfhour, unit = 'month')) %>% 
   # calculate the mean monthly temperature by month
   group_by(month) %>% 
-  summarize(monthly_temp = mean(AirT_C_Avg))
+  summarize(monthly_temp = mean(AirT_C_Avg)) %>%
+  ungroup() %>%
+  mutate(month = as_date(month))
   
 
 # create figure: line graph
@@ -36,15 +38,13 @@ ggplot(data = temp_month,
        mapping = aes(x = month, y = monthly_temp)) +
   # increase size of line graph
   geom_line(size = 1) +
-  # change x-axis scale and rename labels (3 - March, 6 - June, 9 - September, 12 - December)
-  scale_x_continuous(breaks = c(3,6,9,12),
-                     labels = c('Mar','Jun','Sep','Dec')) +
   # rename x axis
-  xlab('Month') +
+  xlab('Month and Year') +
   # rename y axis
-  ylab('Average Temperature (°C)') +
+  ylab('Temperature (°C)') +
   # change the y-axis limits to 15 - 35
   ylim(15,35) +
+  scale_x_date(date_breaks = '2 month', date_labels = '%b %y') + 
   theme_classic() +
   # change the axis line thickness
   theme(axis.line=element_line(size=1))+
@@ -54,57 +54,56 @@ ggplot(data = temp_month,
   theme(axis.title=element_text(size=20))
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/temp_stations_esa.jpg', width = 6, height = 6)
+ggsave('./figs/temp_yr.png', width = 6, height = 6)
 
 ## figure 2: mean monthly precipitation
 
 # load & clean up processed data
-precip_month <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
+precip_month <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
   # select columns: halfhour and Rain_mm_Tot (Total amount of rain)
   select(halfhour,Rain_mm_Tot,Station) %>%
   # remove any rows with missing values
   remove_missing() %>% 
   # add a column that mutates halfhour values into months
-  mutate(month = month(halfhour)) %>% 
+  mutate(month = floor_date(halfhour, unit = 'month')) %>% 
   # add the total amount of rain by month per station
   group_by(month,Station) %>% 
-  summarize(monthly_precip = sum(Rain_mm_Tot))
+  summarize(monthly_precip = sum(Rain_mm_Tot)) %>%
+  ungroup() %>%
+  group_by(month) %>%
+  summarize(monthly_precip = mean(monthly_precip)) %>%
+  ungroup() %>%
+  mutate(month = as_date(month))
 
 # create figure: line graph
 ggplot(data = precip_month,
-       mapping = aes(x = month, y = monthly_precip, group = Station, color = fct_rev(Station))) +
+       mapping = aes(x = month, y = monthly_precip)) +
   # change the data line thickness 
   geom_line(size = 1) +
   # change x-axis scale and rename labels (3 - March, 6 - June, 9 - September, 12 - December)
-  scale_x_continuous(breaks = c(3,6,9,12),
-                     labels = c('Mar','Jun','Sep','Dec')) +
+  scale_x_date(date_breaks = '2 month', date_labels = '%b %y') +
+  scale_y_continuous(limits = c(0, 30)) + 
   # rename x axis
-  xlab('Month') +
+  xlab('Month and Year') +
   # rename y axis
   ylab('Rainfall (mm)') +
   theme_classic() +
   # change the axis line thickness
   theme(axis.line=element_line(size=1))+
   # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
+  theme(axis.text=element_text(colour = 'black',size=15)) +
   # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=12,face="bold")) +
-  # change the font size and make labels bold for the legend
-  theme(legend.title = element_text(size=12,face="bold"), 
-        legend.text = element_text(size=10,face="bold")) +
-  # change the name of the legend and labels to the stations
-  scale_color_discrete(name = "Station",
-                       labels = c("Ocean-Side, Low Elevation", "Bay-Side, Mid-Elevation", "Ocean-Side, Mid-Elevation", "Ocean-Side, High Elevation"))
+  theme(axis.title=element_text(size=20))
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/precip_stations_up.jpg', width = 8, height = 5)
+ggsave('./figs/precip_stations_up.jpg', width = 6, height = 6)
 
 #### figure set 2: vegetation communities ####
 
 ## figure 3: vegetation species richness
 
 # load & clean up vegetation species richness data
-veg_cabr_richness <- readxl::read_xlsx('./clean_data/Veg Monitoring/veg_cabr_richness.xlsx') %>% 
+veg_cabr_richness <- readxl::read_xlsx('./data/clean_data/Veg Monitoring/veg_cabr_richness.xlsx') %>% 
   # select columns 3 (SiteCode), 6 (SurveyYear),8 (Species_Code), 10 (Frequency)
   select(c(3,6,8,10)) %>%
   # select site codes closest to fog monitoring stations
@@ -157,14 +156,14 @@ ggplot(data = veg_cabr_richness,
 hex <- hue_pal()(4)
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/veg_richness_new_stations_up.jpg', width = 9, height = 6)
+ggsave('./figs/veg_richness_new_stations_up.jpg', width = 9, height = 6)
 
 #### figure set 3: haze & LWS experiment ####
 
 ## figure 4: hazer experiment
 
 # load, clean up, & combine fog data
-clean_up_AF <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
+clean_up_AF <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
   # add a column that mutates halfhour values into days 
   mutate(day = date(halfhour)) %>% 
   # remove rows with missing data
@@ -181,7 +180,7 @@ clean_up_AF <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>%
   summarize(mean_LW = mean(mean_LW_17, mean_LW_50, mean_LW_66))
 
 # load Andrew's Finest trail camera calculated data
-AF_haze <- read_csv('./processed_data/AF_HazeOutput_2023.csv')
+AF_haze <- read_csv('./data/processed_data/AF_HazeOutput_2023.csv')
 
 # join fog and camera data frames 
 LWS_haze <- full_join(AF_haze,clean_up_AF, by = 'day') %>% 
@@ -213,18 +212,18 @@ ggplot(data = LWS_haze,
 
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/hazer_graph.jpg', width = 6, height = 4)
+ggsave('./figs/hazer_graph.jpg', width = 6, height = 4)
 
 ## figure 5: LWS experiment
 
 # load & clean up experiment data
-exp_lws_regression <- read_csv('./clean_data/exp_processed_cr800_20230627.csv',
+exp_lws_regression <- read_csv('./data/clean_data/exp_processed_cr800_20230627.csv',
                                # transform column values to register as numeric
                                col_types = cols(LWmV_17ft_Avg = col_number(), 
                                                    LWmV_50ft_Avg = col_number(), LWmV_66ft_Avg = col_number())) %>% 
   # select columns: TIMESTAMP, LWmV_17ft_Avg, LWmV_50ft_Avg
   select(TIMESTAMP,LWmV_17ft_Avg,LWmV_50ft_Avg,LWmV_66ft_Avg) %>% 
-  # filter values between experiment star and end times
+  # filter values between experiment start and end times
   filter(TIMESTAMP >= '2023-06-27 3:20:00', # start date/time 2023-06-27 10:20:00 
          TIMESTAMP <= '2023-06-27 6:40:00') %>% # end date/time to be 2023-06-27 13:40:00
   # isolate the time from the TIMESTAMP column
@@ -252,7 +251,7 @@ exp_lws_regression <- read_csv('./clean_data/exp_processed_cr800_20230627.csv',
   mutate(LWS_dist_ft = case_when(LWS_dist_ft == "mean_lw17" ~ '17',
                                  LWS_dist_ft == "mean_lw50" ~ '50')) %>% 
   # transform h2o_mL to register as numeric (run everything before this and then run this line)
-  mutate(h2o_mL = as.numeric(exp_lws_regression$h2o_mL)) 
+  mutate(h2o_mL = as.numeric(h2o_mL)) 
 
 # calculate regression values and print values in console
 reg <- lm(formula = mV ~ h2o_mL, data = exp_lws_regression)
@@ -301,14 +300,14 @@ ggplot(data = exp_lws_regression,
   
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/lws_exp_stations_esa.jpg', width = 8, height = 6)
+ggsave('./figs/lws_exp_stations_esa.jpg', width = 8, height = 6)
 
 #### figure set 4: fog presence & intensity over space & time ####
 
 ## figure 6: fog presence
 
 # load & clean up processed fog data
-fog_presence <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
+fog_presence <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
   # selecting rows where rain total is less than or equal to 0 mm
   # no rain = fog
   subset(Rain_mm_Tot <= 0) %>%    
@@ -337,8 +336,18 @@ fog_presence <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>%
                               Station == 'Spicy Bunker' ~ 'Bay-Side, Mid-Elevation',
                               Station == 'New New' ~ 'Ocean-Side, Mid-Elevation'))
 
+# load and clean up data
+water_conversion_over0 <- fog_presence %>% 
+  # select the maximum recorded mean LW by day and station
+  group_by(day, Station) %>% 
+  summarize(max = max(mean_lw)) %>% 
+  # divide the maximum number by 150.9 (already subtracted 335.9 in fog_presence)
+  mutate(mL = (max/150.9)) %>% 
+  # mutate mL values where any negative value is changed to equal 0
+  mutate(mL = if_else(mL <= 0, 0,mL)) 
 
-# create figure: line graph
+
+# create figure: line graph (can't replicate - with *day part)
 ggplot() +
   geom_line(data = fog_presence,
             # change color order of graphs 
@@ -378,7 +387,7 @@ ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/fog_presence
 ## figure 7: fog intensity
 
 # load & clean up data
-fog_intensity <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
+fog_intensity <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
   # select columns 1 (Station), 2 (halfhour), 5 (LWmV_17ft_Avg), 10 (LWmV_50ft_Avg),
   # 15 (LWmV_66ft_Avg), 22 (Rain_mm_Tot)
   select(c(1,2,5,10,15,22)) %>%
@@ -422,34 +431,62 @@ median <- fog_intensity %>%
   group_by(Station) %>% 
   summarize(median = median(n))
 
+# ANOVA test ####
+
+# calculate ANOVA using fog intensity data
+fog_aov <- aov(n ~ Station,
+               data = fog_intensity
+)
+
+# use HSD test and turn results into a data frame
+hsd_test <- as.data.frame(HSD.test(fog_aov, trt = 'Station')$group) %>%
+  # make station names into a column
+  rownames_to_column(var = "Station")
+
+
+hsd_test$Station <- fct_relevel(hsd_test$Station, c("Ocean-Side, Low Elevation",
+                                            "Ocean-Side, Mid-Elevation",
+                                            "Bay-Side, Mid-Elevation",
+                                            "Ocean-Side, High Elevation"))
+
+
+fog_intensity$Station <- fct_relevel(fog_intensity$Station, c("Ocean-Side, Low Elevation",
+                                                              "Bay-Side, Mid-Elevation",
+                                                         "Ocean-Side, Mid-Elevation",
+                                                         "Ocean-Side, High Elevation"))
+
+# add hsd info to fog intensity data
+fog_intensity <- left_join(fog_intensity, select(hsd_test, Station, groups), by = 'Station')
+
+# print summary of fog_aov
+summary(fog_aov)
+
 # create figure: boxplot
 ggplot(data = fog_intensity,
        # reverse the order and color of stations 
-       mapping = aes(x = fct_rev(Station), y = n, group = Station, fill = fct_rev(Station))) +
+       mapping = aes(x = Station, y = n, group = Station, fill = Station)) +
   # remove outlier points
-  geom_boxplot(outlier.shape = NA) + 
+  geom_boxplot() + 
   # add letter labels (calculated in ANOVA test section)
-  geom_label(data = hsd_test, mapping = aes(x = Station, y = n + 2, label = groups, fontface='bold'), label.size = NA,fill = NA) +
+  geom_label(mapping = aes(x = Station, y = 0, label = groups, fontface='bold'), label.size = NA, fill = NA) +
   # remove color legend
   guides(fill = FALSE) +
-  # rename the Station labels on x-axis
-  scale_x_discrete(labels = c("Ocean-Side, Low Elevation", "Bay-Side, Mid-Elevation", "Ocean-Side, Mid-Elevation", "Ocean-Side, High Elevation")) +
   # rename x-axis
   xlab("Station") +
   # rename y-axis
-  ylab("Number of Fog Hours") +
+  ylab("Fog Hours") +
   theme_classic() +
+  theme(text = element_text(size = 12)) + 
   # tilt x-axis labels to 45 degrees
-  theme(axis.text.x = element_text(angle = 45, vjust = 0.58, size = 10)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1, size = 12)) +
+  theme(axis.title = element_text(face = 'bold')) + 
   # change the axis line thickness
   theme(axis.line=element_line(size=1))+
   # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=12,face="bold"))
+  theme(axis.text=element_text(colour = 'black', size = 12))
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/fog_intensity_up.jpg', width = 6, height = 6)
+ggsave('./figs/fog_intensity_up.jpg', width = 7, height = 6)
 
 #### figure set 5: water analysis graphs (no rain present) ####
 
@@ -575,20 +612,7 @@ ggplot(data = peninsula_mL,
 
 # save figure as a .jpg file (change size if needed)
 ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/water_conversion_norain_peninsula_ESA.jpg', width = 12, height = 7)
-#### ANOVA test ####
 
-# calculate ANOVA using fog intensity data
-fog_aov <- aov(n ~ Station,
-               data = fog_intensity
-)
-
-# use HSD test and turn results into a data frame
-hsd_test <- as.data.frame(HSD.test(fog_aov, trt = 'Station')$group) %>%
-  # make station names into a column
-  rownames_to_column(var = "Station")
-
-# print summary of fog_aov
-summary(fog_aov)
 
 
 #### figure set 6: sum of water (mm) of fog and rain per station (DONT USE)####

@@ -1,0 +1,21 @@
+{
+    "debugBreakpointsState": {
+        "breakpoints": [
+            {
+                "id": 1,
+                "path": "D:/LP_Files/RStudio_Files/CABR-Fog-Monitoring-2023/FogMon_Analysis_Script2023.R",
+                "line_number": 351,
+                "function_steps": "",
+                "function_name": "toplevel",
+                "state": 1,
+                "editor_state": 1,
+                "editor_line_number": 351,
+                "is_pending_debug_completion": false,
+                "needs_updated_steps": false,
+                "type": 1,
+                "is_package_breakpoint": false,
+                "package_name": ""
+            }
+        ]
+    }
+}
