@@ -9,7 +9,6 @@
 
 #### load packages #####
 library(tidyverse)
-library(lubridate)
 library(janitor)
 library(scales)
 library(agricolae)
@@ -19,19 +18,59 @@ library(agricolae)
 ## figure 1: mean monthly temperature of all four fog stations
 
 # load & clean up processed fog data
-temp_month <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
+station_day <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv',
+                     show_col_types = FALSE) %>% 
   # select columns halfhour and AirT_C_Avg (Average Temperature)
-  select(halfhour,AirT_C_Avg) %>%
-  # remove any rows with missing values
-  remove_missing() %>% 
-  # add a column that mutates halfhour values into months
-  mutate(month = floor_date(halfhour, unit = 'month')) %>% 
-  # calculate the mean monthly temperature by month
-  group_by(month) %>% 
-  summarize(monthly_temp = mean(AirT_C_Avg)) %>%
+  select(halfhour,Rain_mm_Tot, AirT_C_Avg) %>%
+  # take avg daily temp
+  mutate(day = floor_date(halfhour, unit = 'day')) %>%
+  group_by(day) %>%
+  summarize(day_temp = mean(AirT_C_Avg, na.rm = TRUE),
+            day_rain = mean(Rain_mm_Tot, na.rm = TRUE)) %>%
+  # give agnostic month (for graphing) and year
   ungroup() %>%
-  mutate(month = as_date(month))
-  
+  mutate(year = as_factor(year(day)),
+         year_day = yday(day))
+
+
+# load and summarize airport data 
+# note: data pulled from SD Airport from NOAA's LCD Dataset
+# see code: https://github.com/llmpandori2/sandbox/blob/main/SD_Weather_Data/SD_Weather_Abiotic_Query.R
+airport_day <- read_csv("data/airport_data/SD_Intl_Airport_1995-2023.csv") %>%
+  # remove duplicates
+  distinct() %>%
+  # calculate mean daily temperature and precipitation 
+  group_by(date_col) %>%
+  summarize(day_temp = mean(hourlydrybulbtemperature, na.rm = TRUE),
+            day_precip = mean(hourlyprecipitation, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(mutate(year = as_factor(year(date)),
+                year_day = yday(date)),
+                # convert F to C
+                day_temp = (day_temp-32)*(5/9))
+
+# create figure line graph
+ggplot(mapping = aes(x = day, y = day_temp, color = year, group = year)) +
+  geom_line(data = airport_day, alpha = 0.2) + 
+  # increase size of line graph
+  geom_line(data = temp_month, size = 2) +
+  # rename x axis
+  xlab('Month') +
+  # rename y axis
+  ylab('Temperature (°C)') +
+  # change the y-axis limits to 10 - 30
+  ylim(10,30) +
+  #scale_x_date(date_breaks = '2 month', date_labels = '%b %y') + 
+  theme_classic() +
+  # change the axis line thickness
+  theme(axis.line=element_line(size=1))+
+  # change the axis labels color and font size
+  theme(axis.text=element_text(colour = 'black',size=15)) +
+  # change the axis titles font size and make labels bold
+  theme(axis.title=element_text(size=20))
+
+
+
 
 # create figure: line graph
 ggplot(data = temp_month,
