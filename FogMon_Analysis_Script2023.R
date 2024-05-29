@@ -30,112 +30,85 @@ station_day <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv',
   # give agnostic month (for graphing) and year
   ungroup() %>%
   mutate(year = as_factor(year(day)),
-         year_day = yday(day))
-
+         year_day = yday(day),
+         Source = 'Fog Station')
 
 # load and summarize airport data 
 # note: data pulled from SD Airport from NOAA's LCD Dataset
 # see code: https://github.com/llmpandori2/sandbox/blob/main/SD_Weather_Data/SD_Weather_Abiotic_Query.R
-airport_day <- read_csv("data/airport_data/SD_Intl_Airport_1995-2023.csv") %>%
-  # remove duplicates
-  distinct() %>%
-  # calculate mean daily temperature and precipitation 
+airport_day <- read_csv("data/airport_data/SD_Intl_Airport_1995-2023.csv", 
+                        col_types = cols(hourlydrybulbtemperature = col_double(), 
+                                         hourlyprecipitation = col_double(),
+                                         date_col = col_date(format = "%m/%d/%Y"))) %>%
+  # Choices made in wrangling airport data: 
+  # Measurement = *, means "amounts included in following measurement" --> NA
+    # this accounts for all parsing issues, run following line to confirm
+    # unique(problems(airport_data)$actual)
+  # Precipitation = T, means "trace" --> convert to NA
+  # Measurement ends with "s", means "suspect value" --> convert to NA
   group_by(date_col) %>%
   summarize(day_temp = mean(hourlydrybulbtemperature, na.rm = TRUE),
-            day_precip = mean(hourlyprecipitation, na.rm = TRUE)) %>%
+            day_rain = mean(hourlyprecipitation, na.rm = TRUE)) %>%
   ungroup() %>%
-  mutate(mutate(year = as_factor(year(date)),
-                year_day = yday(date)),
-                # convert F to C
-                day_temp = (day_temp-32)*(5/9))
+  mutate(year = as_factor(year(date_col)),
+         year_day = yday(date_col),
+         day_temp = (day_temp - 32)*(5/9),
+         Source = 'SD Airport') %>%
+  rename(day = date_col)
 
-# create figure line graph
-ggplot(mapping = aes(x = day, y = day_temp, color = year, group = year)) +
-  geom_line(data = airport_day, alpha = 0.2) + 
-  # increase size of line graph
-  geom_line(data = temp_month, size = 2) +
-  # rename x axis
-  xlab('Month') +
-  # rename y axis
+# join datasets
+weather <- full_join(airport_day, station_day, by = join_by(day, day_temp, 
+                                        day_rain, year, year_day, Source)) %>%
+  # get month avg
+  mutate(month = month(day)) %>%
+  group_by(month, year, Source) %>%
+  summarize(temp = mean(day_temp, na.rm = T),
+            rain = sum(day_rain, na.rm = T))
+  
+ggplot(data = weather, 
+       mapping = aes(x = month, y = temp, group = interaction(year, Source), 
+                     color = Source)) + 
+  geom_line(lwd = 1) + 
+  xlab('Month') + 
   ylab('Temperature (°C)') +
   # change the y-axis limits to 10 - 30
-  ylim(10,30) +
-  #scale_x_date(date_breaks = '2 month', date_labels = '%b %y') + 
+  ylim(10,35) +
+  xlim(1,12) + 
+  scale_x_continuous(breaks = seq(1,12,2), labels = c('Jan.', 'Mar.', 'May',
+                                                      'July', 'Sep.', 
+                                                      'Nov.')) + 
+  scale_color_manual(name = 'Source', 
+                     values = c('black','#00BFC4'),
+                     labels = c('Fog Station', 'San Diego Airport')) +
   theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=15)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=20))
+  theme(legend.position = 'top') +
+  theme(text = element_text(size = 12))
 
-
-
-
-# create figure: line graph
-ggplot(data = temp_month,
-       mapping = aes(x = month, y = monthly_temp)) +
-  # increase size of line graph
-  geom_line(size = 1) +
-  # rename x axis
-  xlab('Month and Year') +
-  # rename y axis
-  ylab('Temperature (°C)') +
-  # change the y-axis limits to 15 - 35
-  ylim(15,35) +
-  scale_x_date(date_breaks = '2 month', date_labels = '%b %y') + 
-  theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=15)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=20))
-
-# save figure as a .jpg file (change size if needed)
-ggsave('./figs/temp_yr.png', width = 6, height = 6)
+ggsave('./figs/temp_yr.png', width = 4, height = 4, dpi = 600)
 
 ## figure 2: mean monthly precipitation
 
-# load & clean up processed data
-precip_month <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
-  # select columns: halfhour and Rain_mm_Tot (Total amount of rain)
-  select(halfhour,Rain_mm_Tot,Station) %>%
-  # remove any rows with missing values
-  remove_missing() %>% 
-  # add a column that mutates halfhour values into months
-  mutate(month = floor_date(halfhour, unit = 'month')) %>% 
-  # add the total amount of rain by month per station
-  group_by(month,Station) %>% 
-  summarize(monthly_precip = sum(Rain_mm_Tot)) %>%
-  ungroup() %>%
-  group_by(month) %>%
-  summarize(monthly_precip = mean(monthly_precip)) %>%
-  ungroup() %>%
-  mutate(month = as_date(month))
-
-# create figure: line graph
-ggplot(data = precip_month,
-       mapping = aes(x = month, y = monthly_precip)) +
-  # change the data line thickness 
-  geom_line(size = 1) +
-  # change x-axis scale and rename labels (3 - March, 6 - June, 9 - September, 12 - December)
-  scale_x_date(date_breaks = '2 month', date_labels = '%b %y') +
-  scale_y_continuous(limits = c(0, 30)) + 
-  # rename x axis
-  xlab('Month and Year') +
-  # rename y axis
+ggplot(data = weather, 
+       mapping = aes(x = month, y = rain, group = interaction(year, Source), 
+                     color = Source)) + 
+  geom_line(lwd = 1) + 
+  xlab('Month') + 
   ylab('Rainfall (mm)') +
+  # change the y-axis limits to 10 - 30
+  ylim(0,0.6) +
+  xlim(1,12) + 
+  scale_x_continuous(breaks = seq(1,12,2), labels = c('Jan.', 'Mar.', 'May',
+                                                      'July', 'Sept.', 
+                                                      'Nov.')) + 
+  scale_color_manual(name = 'Source', 
+                     values = c('black','#00BFC4'),
+                     labels = c('Fog Station ', 
+                                'San Diego Airport')) +
   theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=15)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=20))
+  theme(legend.position = 'top') +
+  theme(text = element_text(size = 12))
 
-# save figure as a .jpg file (change size if needed)
-ggsave('./figs/precip_stations_up.jpg', width = 6, height = 6)
+ggsave('./figs/precip_yr.png', width = 4, height = 4)
 
 #### figure set 2: vegetation communities ####
 
