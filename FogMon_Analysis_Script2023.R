@@ -4,7 +4,7 @@
 # & LWS experiment data from all fog weather stations at CABR
 # Author: Virginia Javier & Lauren Pandori 
 # Created: 06/28/2023
-# Last Edited: 08/02/2023 
+# Last Edited: 05/29/2024 
 ###########################################
 
 #### load packages #####
@@ -13,9 +13,10 @@ library(janitor)
 library(scales)
 library(agricolae)
 
-#### figure set 1: Mediterranean climate ####
+# find the default R colors for 4 variables (used in scale_fill_manual())
+hex <- hue_pal()(4)
 
-## figure 1: mean monthly temperature of all four fog stations
+#### Introduction: Mediterranean climate (Fig 1, 2) ####
 
 # load & clean up processed fog data
 station_day <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv',
@@ -64,11 +65,14 @@ weather <- full_join(airport_day, station_day, by = join_by(day, day_temp,
   group_by(month, year, Source) %>%
   summarize(temp = mean(day_temp, na.rm = T),
             rain = sum(day_rain, na.rm = T))
-  
+
+## figure 1: mean monthly temperature of all four fog stations
 ggplot(data = weather, 
        mapping = aes(x = month, y = temp, group = interaction(year, Source), 
                      color = Source)) + 
   geom_line(lwd = 1) + 
+  geom_line(data = filter(weather, Source == 'Fog Station'), 
+            mapping = aes(x = month, y = temp, color = Source), lwd = 1) + 
   xlab('Month') + 
   ylab('Temperature (°C)') +
   # change the y-axis limits to 10 - 30
@@ -92,6 +96,8 @@ ggplot(data = weather,
        mapping = aes(x = month, y = rain, group = interaction(year, Source), 
                      color = Source)) + 
   geom_line(lwd = 1) + 
+  geom_line(data = filter(weather, Source == 'Fog Station'), 
+            mapping = aes(x = month, y = rain, color = Source), lwd = 1) + 
   xlab('Month') + 
   ylab('Rainfall (mm)') +
   # change the y-axis limits to 10 - 30
@@ -110,9 +116,11 @@ ggplot(data = weather,
 
 ggsave('./figs/precip_yr.png', width = 4, height = 4)
 
-#### figure set 2: vegetation communities ####
+remove(airport_day, station_day, weather)
 
-## figure 3: vegetation species richness
+#### Appendix 1: Vegetation Communities at CABR ####
+
+## figure S1: vegetation species richness
 
 # load & clean up vegetation species richness data
 veg_cabr_richness <- readxl::read_xlsx('./data/clean_data/Veg Monitoring/veg_cabr_richness.xlsx') %>% 
@@ -149,7 +157,7 @@ ggplot(data = veg_cabr_richness,
                                       "Bay-Side, Mid-Elevation - Wart-stemmed Ceanothus Chaparral", "Ocean-Side, Mid-Elevation - Lemonade Berry Scrub", 
                                       "Ocean-Side, High Elevation - Chamise Coastal Mesa Chaparral"))) +
   # remove legend
-  guides(fill = FALSE) +
+  guides(fill = 'none') +
   # rename x-axis
   xlab("Species Code") +
   theme_classic() +
@@ -163,16 +171,16 @@ ggplot(data = veg_cabr_richness,
   theme(axis.title=element_text(size=12,face="bold")) +
   # bold the facet wrap titles
   theme(strip.text = element_text(face = "bold"))
-  
-# find the default R colors for 4 variables (used in scale_fill_manual())
-hex <- hue_pal()(4)
 
 # save figure as a .jpg file (change size if needed)
 ggsave('./figs/veg_richness_new_stations_up.jpg', width = 9, height = 6)
 
-#### figure set 3: haze & LWS experiment ####
+# clean up
+remove(veg_cabr_richness)
 
-## figure 4: hazer experiment
+#### Appendix 3: Fog Threshold Experiments ####
+
+## figure s2: HazR experiment
 
 # load, clean up, & combine fog data
 clean_up_AF <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
@@ -226,7 +234,7 @@ ggplot(data = LWS_haze,
 # save figure as a .jpg file (change size if needed)
 ggsave('./figs/hazer_graph.jpg', width = 6, height = 4)
 
-## figure 5: LWS experiment
+## figure s3: LWS experiment
 
 # load & clean up experiment data
 exp_lws_regression <- read_csv('./data/clean_data/exp_processed_cr800_20230627.csv',
@@ -282,8 +290,9 @@ ggplot(data = exp_lws_regression,
        mapping = aes(x = h2o_mL, y = mV, color = 'mV')) + 
   # plot points separately (LWS 17ft/50ft & 66ft)
   geom_point() + 
-  geom_point(data = exp_lws_regression,
-             mapping = aes(x = h2o_mL, y = mean_lw66, group = mean_lw66, color = 'mean_lw66')) +
+  geom_jitter(data = exp_lws_regression,
+             mapping = aes(x = 0, y = mean_lw66, group = mean_lw66, 
+                           color = 'mean_lw66'), width = 0.1, height = 10) +
   # plot linear regression line
   geom_smooth(method = 'lm') + 
   # change x-axis scale (min = 0, max = 3, scale = 0.5)
@@ -314,9 +323,12 @@ ggplot(data = exp_lws_regression,
 # save figure as a .jpg file (change size if needed)
 ggsave('./figs/lws_exp_stations_esa.jpg', width = 8, height = 6)
 
-#### figure set 4: fog presence & intensity over space & time ####
+# clean up
+remove(AF_haze, clean_up_AF, exp_lws_regression, LWS_haze, reg, threshold)
 
-## figure 6: fog presence
+#### Results: Fog Presence and Intensity (Fig 3, 4) ####
+
+## figure 4: Fog Presence Time Series
 
 # load & clean up processed fog data
 fog_presence <- read_csv('./data/clean_data/Combined_FogMon_Data2023.csv') %>% 
@@ -356,20 +368,18 @@ water_conversion_over0 <- fog_presence %>%
   # divide the maximum number by 150.9 (already subtracted 335.9 in fog_presence)
   mutate(mL = (max/150.9)) %>% 
   # mutate mL values where any negative value is changed to equal 0
-  mutate(mL = if_else(mL <= 0, 0,mL)) 
+  mutate(mL = if_else(mL <= 0, 0,mL),
+         max = if_else(max <= 0, 0, max))
+
+water_conversion_over0$Station <- as_factor(water_conversion_over0$Station)
 
 
-# create figure: line graph (can't replicate - with *day part)
-ggplot() +
-  geom_line(data = fog_presence,
-            # change color order of graphs 
-            mapping = aes(x = day, y = mean_lw, group = Station, color = fct_rev(Station))) +
-  geom_line(data = water_conversion_over0,
-            # change color order of graphs
-            mapping = aes(x = day, y = mL, group = Station, color = fct_rev(Station))) +
-  scale_y_continuous(name = "Leaf Wentesss (mV)", sec.axis = sec_axis(~.*day, name =expression("H"[2]*"O"~"(mL)"))) +
+ggplot(data = water_conversion_over0,
+  mapping = aes(x = day, y = max, group = Station, color = fct_rev(Station))) + 
+  geom_line() +
+  scale_y_continuous(name = "Leaf Wetness (mV)", sec.axis = sec_axis(~.*(1/150.9), name =expression("H"[2]*"O"~"(mL)"))) +
   # remove color legend
-  guides(color = FALSE) +
+  guides(color = F) +
   # rename x-axis
   xlab('Month') +
   # rename y-axis
@@ -386,15 +396,16 @@ ggplot() +
   theme_classic() +
   # change the axis line thickness
   theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=12,face="bold")) +
   # bold the facet wrap titles
   theme(strip.text = element_text(face = "bold"))
 
 # save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/fog_presence_up.jpg', width = 6, height = 4)
+ggsave('./figs/fog_presence_up.jpg', width = 6, height = 4)
+
+# get avg leaf wetness for each station
+water_conversion_over0 %>%
+  group_by(Station) %>%
+  summarise(median_mV = mean(max))
 
 ## figure 7: fog intensity
 
@@ -443,7 +454,7 @@ median <- fog_intensity %>%
   group_by(Station) %>% 
   summarize(median = median(n))
 
-# ANOVA test ####
+# ANOVA test #
 
 # calculate ANOVA using fog intensity data
 fog_aov <- aov(n ~ Station,
@@ -500,227 +511,7 @@ ggplot(data = fog_intensity,
 # save figure as a .jpg file (change size if needed)
 ggsave('./figs/fog_intensity_up.jpg', width = 7, height = 6)
 
-#### figure set 5: water analysis graphs (no rain present) ####
-
-# regression line equation to solve for mL of water 
-# x = (y - 335.9)/150.9
-
-## figure 8: mL for all stations without rain present
-
-# load and clean up data
-water_conversion_over0 <- fog_presence %>% 
-  # select the maximum recorded mean LW by day and station
-  group_by(day, Station) %>% 
-  summarize(max = max(mean_lw)) %>% 
-  # divide the maximum number by 150.9 (already subtracted 335.9 in fog_presence)
-  mutate(mL = (max/150.9)) %>% 
-  # mutate mL values where any negative value is changed to equal 0
-  mutate(mL = if_else(mL <= 0, 0,mL)) 
-
-# create figure: line graph
-ggplot(data = water_conversion_over0,
-       # change color order of graphs
-       mapping = aes(x = day, y = mL, group = Station, color = Station)) + 
-  geom_line() +
-  # scale_color_discrete(limits = c("Ocean-Side, Low Elevation", "Bay-Side, Mid-Elevation", "Ocean-Side, Mid-Elevation", "Ocean-Side, High Elevation")) +
-  # remove color legend
-  guides(color = FALSE) +
-  # assign name order and colors in legend/graphs
-  scale_color_manual(values = c("Ocean-Side, Low Elevation" = "#F8766D",
-                               "Bay-Side, Mid-Elevation" = "#7CAE00",
-                               "Ocean-Side, Mid-Elevation" = "#00BFC4",
-                               "Ocean-Side, High Elevation" = "#C77CFF")) + 
-  # separate station data into different graphs in this order
-  facet_wrap(~factor(Station,levels=c("Ocean-Side, Low Elevation", 
-                                      "Bay-Side, Mid-Elevation", "Ocean-Side, Mid-Elevation", 
-                                      "Ocean-Side, High Elevation"))) +
-  # rename x axis
-  xlab('Month') +
-  # rename y axis
-  ylab(expression("H"[2]*"O"~"(mL)")) +
-  theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=12, face="bold")) +
-  theme(strip.text.x = element_text(face="bold"))
-
-# save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/water_conversion_norain_up.jpg', width = 6, height = 4)
-
-## figure 9: elevation gradient stations ONLY (TP, NN, EB)
-
-# load data
-elev_mL <- water_conversion_over0 %>% 
-  # select TP, NN, and EB station
-  filter(Station == 'Tide Pool' | Station == 'New New' | Station == 'Event Bluff') %>% 
-  # rename stations
-  mutate(Station = case_when(Station == "Tide Pool" ~ "Tide Pool (15m)",
-                   Station == "New New" ~ "New New (51m)",
-                   Station == "Event Bluff" ~ "Event Bluff (120m)"))
+# clean up
+remove(fog_aov, fog_intensity, fog_presence, hsd_test, median, water_conversion_over0)
 
 
-# create figure: line graph
-ggplot(data = elev_mL,
-       # change color order of graphs (TP, NN, EB)
-       mapping = aes(x = day, y = mL, group = Station, color = fct_rev(Station))) + 
-  geom_line() +
-  # remove color legend
-  guides(color = FALSE) +
-  # separate the station data into different graphs and change the order (TP, NN, EB)
-  facet_wrap(~fct_rev(Station)) +
-  # rename x axis
-  xlab('Month') +
-  # rename y axis
-  ylab(expression("H"[2]*"O"~"(mL)")) +
-  theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=15)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=20)) +
-  # increase the size of facet_wrap titles
-  theme(strip.text.x = element_text(size = 24))
-
-# save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/water_conversion_norain_elev_ESA.jpg', width = 12, height = 7)
-
-## figure 10: mL peninsula sides stations ONLY (SB & NN)
-
-# load data
-peninsula_mL <- water_conversion_over0 %>% 
-  # select SB & NN stations
-  filter(Station == 'Spicy Bunker' | Station == 'New New') %>% 
-  # rename stations
-  mutate(Station = case_when(Station == "Spicy Bunker" ~ "Spicy Bunker (Bay-Side)",
-                             Station == "New New" ~ "New New (Ocean-Side)"))
-
-# create figure: line graph
-ggplot(data = peninsula_mL,
-       # change color order of graphs (SB, NN)
-       mapping = aes(x = day, y = mL, group = Station, color = fct_rev(Station))) + 
-  geom_line() +
-  # remove color legend
-  guides(color = FALSE) +
-  # separate the station data into different graphs and change the order (SB, NN)
-  facet_wrap(~fct_rev(Station)) +
-  # rename x axis
-  xlab('Month') +
-  # rename y axis
-  ylab(expression("H"[2]*"O"~"(mL)")) +
-  theme_classic() +
-  # change the axis line thickness
-  theme(axis.line=element_line(size=1))+
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=15)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=20)) +
-  # change the font size of the facet_wrap title
-  theme(strip.text.x = element_text(size = 24))
-
-
-# save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/water_conversion_norain_peninsula_ESA.jpg', width = 12, height = 7)
-
-
-
-#### figure set 6: sum of water (mm) of fog and rain per station (DONT USE)####
-
-## load data
-
-# fog, no rain
-fog <- water_conversion_over0 %>% 
-  mutate(fog_or_rain = "FOG")
-
-# area of LWS = 69.6 cm2
-  
-# rain, no fog
-rain <- read_csv('./clean_data/Combined_FogMon_Data2023.csv') %>% 
-  # selecting rows where rain total is less than or equal to 0 mm
-  # no rain = fog
-  subset(Rain_mm_Tot > 0) %>%    
-  # select columns 1 (Station), 2 (halfhour), 5 (LWmV_17ft_Avg), 10 (LWmV_50ft_Avg),
-  # and 15 (LWmV_66ft_Avg)
-  select(c(1,2,22)) %>% 
-  # remove any rows with missing data
-  remove_missing() %>% 
-  mutate(day = date(halfhour)) %>% 
-  # calculate the average of each LWS by halfhour and station
-  group_by(day, Station) %>% 
-  summarize(mm = sum(Rain_mm_Tot)) %>% 
-  group_by(day,Station) %>% 
-  summarize(mL = mm/0.5568) %>% 
-  mutate(fog_or_rain = "RAIN") %>% 
-  mutate(Station = case_when( Station == 'Event Bluff' ~ 'Ocean-Side, High Elevation',
-                              Station == 'Tide Pool' ~ 'Ocean-Side, Low Elevation',
-                              Station == 'Spicy Bunker' ~ 'Bay-Side, Mid-Elevation',
-                              Station == 'New New' ~ 'Ocean-Side, Mid-Elevation')) 
-
-
-# combine
-rain_fog <- bind_rows(fog,rain) %>% 
-  mutate(fog_or_rain = case_when(fog_or_rain == 'FOG' ~'Fog',
-                                 fog_or_rain == 'RAIN' ~'Rain'))
-
-## create figure
-ggplot(data = rain_fog,
-       mapping = aes(x = day, y = mL, group = fog_or_rain, fill = fog_or_rain)) +
-  geom_col() +
-  facet_wrap(~fog_or_rain) +
-  guides(fill = FALSE) + 
-  xlab('Month') +
-  # rename y axis
-  ylab(expression("H"[2]*"O"~"(mL)")) +
-  theme_classic() +
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
-  # change the axis titles font size and make labels bold
-  theme(axis.title=element_text(size=12)) +
-  theme(strip.text.x = element_text(size=12))
-
-# save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/rain_vs_fog.jpg', width = 6, height = 4)
-
-
-#### figure set 7: combined mV and mL graph ####
-
-## combine data
-mv_ml <- merge(fog_presence,water_conversion_over0) %>% 
-  # make any negative values equal to 0 for mean_lw and mL
-  mutate(mL = if_else(mL <= 0, 0,mL)) %>% 
-  mutate(mean_lw = if_else(mean_lw <= 0,0,mean_lw))
-
-## create figure: line graphs
-ggplot(data = mv_ml, mapping = aes(x = day)) +
-  # graph mean_lw data
-  geom_line(mapping = aes(y = mean_lw, group = Station, color = fct_rev(Station))) +
-  # rename left y-axis, create a right y-axis (divide values by 150.9, change the name of the axis, and change axis breaks)
-  scale_y_continuous(name = "Leaf Wetness (mV)", sec.axis = sec_axis(trans = ~(./150.9),name =expression("H"[2]*"O"~"(mL)"), breaks = c(0,0.5,1,1.5,2))) +
-  # remove color legend
-  guides(color = FALSE) +
-  # rename x-axis
-  xlab('Month') +
-  # rename y-axis
-  ylab('Leaf Wetness (mV)') +
-  # separate the station data into different graphs, change the order and assign colors
-  scale_color_manual(values = c("Ocean-Side, Low Elevation" = "#F8766D",
-                                "Bay-Side, Mid-Elevation" = "#7CAE00",
-                                "Ocean-Side, Mid-Elevation" = "#00BFC4",
-                                "Ocean-Side, High Elevation" = "#C77CFF")) + 
-  # separate station data into different graphs in this order 
-  facet_wrap(~factor(Station,levels=c("Ocean-Side, Low Elevation", 
-                                      "Bay-Side, Mid-Elevation", "Ocean-Side, Mid-Elevation", 
-                                      "Ocean-Side, High Elevation"))) +
-  theme_classic() +
-  # change the axis labels color and font size
-  theme(axis.text=element_text(colour = 'black',size=10)) +
-  # change the axis titles font size
-  theme(axis.title=element_text(size=12)) +
-  # change font size for station titles
-  theme(strip.text = element_text(size = 12))
-
-# save figure as a .jpg file (change size if needed)
-ggsave('/Users/virginiajavier/Desktop/SIP 2023/SIP_VGJ_2023/figures/mv_ml.jpg', width = 6, height = 4)
